@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crea tu propio asistente con IA · Taller CECAR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0F1E1B; --teal:#0E7C66; --teal-mid:#0A5A4A; --teal-deep:#093B31;
+    --amber:#E8A33D; --amber-soft:#F4C87A;
+    --paper:#EDF3F0; --surface:#FFFFFF;
+    --line:rgba(15,30,27,.12); --muted:#4C5A56;
+    --d-bg:#093B31; --d-ink:#EAF3EF; --d-muted:#A6C6BC; --d-line:rgba(255,255,255,.16);
+    --r:18px; --ease:cubic-bezier(.22,.61,.36,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:"Inter",system-ui,sans-serif;color:var(--ink);background:var(--paper);
+    -webkit-font-smoothing:antialiased;overflow:hidden;
+  }
+  .stage{position:relative;height:100dvh;width:100%;overflow:hidden}
+
+  /* ---------- Slides ---------- */
+  .slide{
+    position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;
+    padding:clamp(24px,5vw,80px);padding-top:clamp(60px,8vh,90px);padding-bottom:clamp(78px,10vh,96px);
+    overflow-y:auto;opacity:0;visibility:hidden;transform:translateY(14px);
+    transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s;
+  }
+  .slide.active{opacity:1;visibility:visible;transform:none}
+  .slide.prev{transform:translateY(-14px)}
+  .wrap{width:100%;max-width:1040px;margin:0 auto}
+  .slide--dark{background:var(--d-bg);color:var(--d-ink)}
+  .slide--center .wrap{text-align:center}
+  .slide--top{justify-content:flex-start}
+
+  /* ---------- Type ---------- */
+  .eyebrow{
+    font-family:"Space Grotesk";font-weight:600;font-size:.78rem;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--teal);display:inline-flex;align-items:center;gap:.5em;margin-bottom:1.1rem;
+  }
+  .slide--dark .eyebrow{color:var(--amber-soft)}
+  .eyebrow .gem{width:14px;height:14px}
+  h1{font-family:"Space Grotesk";font-weight:700;font-size:clamp(2.2rem,6.2vw,4.4rem);line-height:1.02;letter-spacing:-.02em}
+  h2{font-family:"Space Grotesk";font-weight:600;font-size:clamp(1.7rem,4.2vw,2.9rem);line-height:1.06;letter-spacing:-.015em}
+  .lead{font-size:clamp(1.02rem,1.9vw,1.28rem);line-height:1.5;color:var(--muted);max-width:56ch;margin-top:1.1rem}
+  .slide--dark .lead{color:var(--d-muted)}
+  .hint{font-size:.86rem;color:var(--muted);margin-top:2.2rem;display:inline-flex;align-items:center;gap:.5em}
+  .slide--dark .hint{color:var(--d-muted)}
+  .kbd{font-family:"JetBrains Mono";font-size:.78rem;border:1px solid var(--d-line);border-radius:7px;padding:.15em .5em;color:var(--d-ink)}
+
+  /* ---------- Reveal cards ---------- */
+  .grid{display:grid;gap:16px;margin-top:2rem}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g4{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:760px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+  .card{
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+    text-align:left;cursor:pointer;overflow:hidden;transition:border-color .25s,box-shadow .25s,transform .25s;
+    position:relative;
+  }
+  .slide--dark .card{background:rgba(255,255,255,.05);border-color:var(--d-line)}
+  .card:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(9,59,49,.10);border-color:rgba(14,124,102,.45)}
+  .card:focus-visible{outline:3px solid var(--amber);outline-offset:3px}
+  .card.open{border-color:var(--teal)}
+  .slide--dark .card.open{border-color:var(--amber-soft)}
+  .card__head{display:flex;align-items:center;gap:14px;padding:20px 22px}
+  .num{
+    flex:none;width:34px;height:34px;border-radius:10px;background:var(--paper);color:var(--teal);
+    display:grid;place-items:center;font-family:"Space Grotesk";font-weight:700;font-size:1rem;
+  }
+  .slide--dark .num{background:rgba(255,255,255,.08);color:var(--amber-soft)}
+  .card__title{font-family:"Space Grotesk";font-weight:600;font-size:1.06rem;flex:1;line-height:1.2}
+  .toggle{
+    flex:none;width:30px;height:30px;border-radius:50%;border:1.5px solid var(--line);
+    display:grid;place-items:center;color:var(--teal);transition:transform .3s var(--ease),background .25s,color .25s;
+  }
+  .slide--dark .toggle{border-color:var(--d-line);color:var(--amber-soft)}
+  .card.open .toggle{transform:rotate(45deg);background:var(--teal);color:#fff;border-color:var(--teal)}
+  .slide--dark .card.open .toggle{background:var(--amber);color:var(--d-bg);border-color:var(--amber)}
+  .toggle svg{width:16px;height:16px}
+  .card__body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .34s var(--ease)}
+  .card.open .card__body{grid-template-rows:1fr}
+  .card__body>div{overflow:hidden}
+  .card__inner{padding:0 22px 20px 70px;color:var(--muted);font-size:.98rem;line-height:1.5}
+  .slide--dark .card__inner{color:var(--d-muted)}
+  @media(max-width:520px){.card__inner{padding-left:22px}}
+
+  /* ---------- Steps ---------- */
+  .steps{margin-top:1.8rem;display:flex;flex-direction:column;gap:2px;counter-reset:s}
+  .step{display:flex;gap:16px;padding:12px 6px;border-bottom:1px solid var(--line);align-items:flex-start}
+  .step:last-child{border-bottom:0}
+  .step__n{
+    flex:none;counter-increment:s;font-family:"Space Grotesk";font-weight:700;color:var(--teal);
+    width:1.6em;text-align:right;font-size:1.02rem;
+  }
+  .step__n::before{content:counter(s)}
+  .step p{font-size:1rem;line-height:1.45}
+  .step b{font-weight:600}
+  .slide--practice .wrap{max-width:1120px}
+  .slide--practice .lead{max-width:68ch}
+  .slide--practice .steps{margin-top:1rem;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;counter-reset:s}
+  .slide--practice .step{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;align-items:flex-start}
+  .slide--practice .step:last-child{border-bottom:1px solid var(--line)}
+  @media(max-width:760px){.slide--practice .steps{grid-template-columns:1fr}}
+  @media(max-width:520px){
+    .slide--practice h2{font-size:clamp(1.45rem,7.4vw,1.9rem)}
+    .slide--practice .lead{font-size:.98rem;line-height:1.42;margin-top:.85rem}
+    .slide--practice .steps{margin-top:1rem;gap:7px}
+    .slide--practice .step{gap:10px;padding:9px 10px}
+    .slide--practice .step p{font-size:.92rem;line-height:1.35}
+  }
+
+  /* ---------- Prompt box ---------- */
+  .prompt{background:var(--surface);border:1px solid var(--line);border-radius:14px;margin-top:16px;overflow:hidden}
+  .slide--dark .prompt{background:rgba(255,255,255,.05);border-color:var(--d-line)}
+  .resource-link{margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px dashed rgba(14,124,102,.38);background:rgba(14,124,102,.06);border-radius:12px;padding:8px 12px;color:var(--muted);font-size:.92rem;line-height:1.35}
+  .resource-link b{color:var(--ink);font-weight:600}
+  .resource-link a{flex:none;border-radius:9px;background:var(--teal);color:#fff;text-decoration:none;font-weight:700;font-size:.82rem;padding:.55em .85em;transition:.2s}
+  .resource-link a:hover{background:var(--teal-mid);transform:translateY(-1px)}
+  .resource-files{margin-top:10px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+  .resource-file{border:1px solid var(--line);background:rgba(14,124,102,.05);border-radius:11px;padding:9px 10px;text-decoration:none;color:var(--ink);font-size:.84rem;font-weight:700;line-height:1.2;transition:.2s}
+  .resource-file span{display:block;color:var(--muted);font-size:.72rem;font-weight:600;margin-top:3px}
+  .resource-file:hover{border-color:rgba(14,124,102,.5);background:rgba(14,124,102,.1);transform:translateY(-1px)}
+  .prompt-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:10px}
+  .prompt-list .prompt{margin-top:0}
+  .prompt__bar{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid var(--line);gap:12px}
+  .slide--dark .prompt__bar{border-color:var(--d-line)}
+  .prompt__label{font-family:"Space Grotesk";font-weight:600;font-size:.82rem;letter-spacing:.04em;color:var(--teal)}
+  .slide--dark .prompt__label{color:var(--amber-soft)}
+  .prompt__toggle{
+    flex:1;border:0;background:transparent;padding:0;color:inherit;cursor:pointer;text-align:left;
+    display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;
+  }
+  .prompt__toggle:focus-visible{outline:3px solid var(--amber);outline-offset:4px;border-radius:8px}
+  .prompt__state{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:.82rem;font-weight:600;white-space:nowrap}
+  .prompt__chevron{width:20px;height:20px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;color:var(--teal);transition:transform .25s var(--ease),background .25s,color .25s}
+  .prompt--collapsible.open .prompt__chevron{transform:rotate(45deg);background:var(--teal);border-color:var(--teal);color:#fff}
+  .prompt--collapsible:not(.open) .prompt__bar{border-bottom:0}
+  .prompt--collapsible:not(.open) pre{display:none}
+  .copy{
+    font-family:"Inter";font-size:.78rem;font-weight:600;border:1px solid var(--line);background:transparent;
+    color:var(--ink);border-radius:8px;padding:.4em .8em;cursor:pointer;transition:.2s;display:inline-flex;gap:.4em;align-items:center;
+  }
+  .slide--dark .copy{color:var(--d-ink);border-color:var(--d-line)}
+  .copy:hover{background:var(--teal);color:#fff;border-color:var(--teal)}
+  .copy.done{background:var(--amber);color:var(--ink);border-color:var(--amber)}
+  .prompt pre{
+    font-family:"JetBrains Mono";font-size:.82rem;line-height:1.55;padding:16px;white-space:pre-wrap;
+    color:var(--ink);max-height:38vh;overflow:auto;
+  }
+  .slide--dark .prompt pre{color:var(--d-ink)}
+  @media(max-width:760px){.prompt-list{grid-template-columns:1fr}.resource-files{grid-template-columns:repeat(2,minmax(0,1fr))}.prompt__bar{align-items:flex-start}.prompt__toggle{align-items:flex-start}.prompt__state{margin-top:2px}}
+  @media(max-width:520px){.slide--practice .resource-link{font-size:.84rem;padding:8px 10px}.slide--practice .resource-link a{font-size:.76rem}.slide--practice .prompt-list{gap:10px;margin-top:12px}.slide--practice .prompt__bar{padding:9px 12px}.slide--practice .prompt__label{font-size:.75rem}.slide--practice .copy{padding:.35em .7em}}
+
+  /* ---------- Checklist ---------- */
+  .check{list-style:none;margin-top:1.8rem;display:flex;flex-direction:column;gap:10px}
+  .check li{
+    display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--line);
+    border-radius:12px;padding:16px 18px;cursor:pointer;transition:.2s;font-size:1rem;
+  }
+  .check li:hover{border-color:rgba(14,124,102,.5)}
+  .check .box{
+    flex:none;width:26px;height:26px;border-radius:8px;border:2px solid var(--line);
+    display:grid;place-items:center;color:#fff;transition:.2s;
+  }
+  .check li.done .box{background:var(--teal);border-color:var(--teal)}
+  .check .box svg{width:15px;height:15px;opacity:0;transition:.2s}
+  .check li.done .box svg{opacity:1}
+  .check li.done span{color:var(--muted);text-decoration:line-through}
+
+  .hero-two{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:2rem}
+  @media(max-width:760px){.hero-two{grid-template-columns:1fr}}
+
+  .closing-chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:2rem;justify-content:center}
+  .chip{
+    border:1px solid var(--d-line);border-radius:999px;padding:.7em 1.2em;font-size:.92rem;cursor:pointer;
+    color:var(--d-ink);transition:.2s;background:rgba(255,255,255,.04);
+  }
+  .chip:hover,.chip.on{background:var(--amber);color:var(--d-bg);border-color:var(--amber)}
+  .chip-note{margin-top:1.4rem;color:var(--d-muted);min-height:1.4em;font-size:1rem;transition:.2s}
+
+  /* ---------- Chrome / nav ---------- */
+  .topbar{position:fixed;top:0;left:0;right:0;height:52px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 clamp(18px,4vw,42px);z-index:40;pointer-events:none}
+  .brand{display:flex;align-items:center;gap:9px;font-family:"Space Grotesk";font-weight:700;font-size:.92rem;letter-spacing:.02em;color:var(--ink)}
+  .brand .gem{width:18px;height:18px;color:var(--teal)}
+  .counter{font-family:"JetBrains Mono";font-size:.8rem;color:var(--muted)}
+  .progress{position:fixed;top:0;left:0;height:3px;background:var(--teal);z-index:50;transition:width .45s var(--ease)}
+  body.on-dark .brand{color:var(--d-ink)} body.on-dark .brand .gem{color:var(--amber-soft)}
+  body.on-dark .counter{color:var(--d-muted)}
+
+  .nav{position:fixed;right:clamp(16px,4vw,36px);bottom:clamp(18px,4vh,32px);display:flex;gap:10px;z-index:40}
+  .nav button{
+    width:48px;height:48px;border-radius:50%;border:1px solid var(--line);background:var(--surface);
+    color:var(--ink);cursor:pointer;display:grid;place-items:center;transition:.2s;
+  }
+  .nav button:hover:not(:disabled){background:var(--teal);color:#fff;border-color:var(--teal);transform:translateY(-2px)}
+  .nav button:disabled{opacity:.35;cursor:default}
+  .nav button svg{width:20px;height:20px}
+  body.on-dark .nav button{background:rgba(255,255,255,.08);color:var(--d-ink);border-color:var(--d-line)}
+
+  .dots{position:fixed;left:0;right:0;bottom:clamp(20px,4vh,34px);display:flex;gap:8px;justify-content:center;z-index:39;pointer-events:none}
+  .dots button{width:8px;height:8px;border-radius:50%;border:0;background:var(--line);cursor:pointer;pointer-events:auto;transition:.25s}
+  .dots button.on{background:var(--teal);width:24px;border-radius:5px}
+  body.on-dark .dots button{background:var(--d-line)} body.on-dark .dots button.on{background:var(--amber)}
+  @media(max-width:620px){.dots{display:none}}
+
+  @media(prefers-reduced-motion:reduce){*{transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<div class="topbar">
+  <div class="brand"><svg class="gem" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2.5h12l4.5 6.2L12 22 1.5 8.7z" opacity=".9"/><path d="M6 2.5 12 22 18 2.5M1.5 8.7h21" stroke="rgba(255,255,255,.35)" stroke-width=".8" fill="none"/></svg>CECAR · Taller IA</div>
+  <div class="counter"><span id="cur">01</span> / <span id="tot">12</span></div>
+</div>
+
+<div class="stage" id="stage">
+
+  <!-- 1 · COVER -->
+  <section class="slide slide--dark slide--center active">
+    <div class="wrap">
+      <span class="eyebrow"><svg class="gem" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2.5h12l4.5 6.2L12 22 1.5 8.7z"/></svg>Taller práctico · Docentes CECAR</span>
+      <h1>Crea tu propio<br>asistente con IA</h1>
+      <p class="lead" style="margin-left:auto;margin-right:auto">Construye asistentes personalizados con Gemini (Gems) para tu práctica docente. Sin programar. En dos horas.</p>
+      <p class="hint">Avanza con <span class="kbd">→</span> <span class="kbd">espacio</span> o los botones de abajo</p>
+    </div>
+  </section>
+
+  <!-- 2 · HOOK -->
+  <section class="slide">
+    <div class="wrap">
+      <span class="eyebrow"><svg class="gem" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2.5h12l4.5 6.2L12 22 1.5 8.7z"/></svg>El punto de partida</span>
+      <h2>De una IA genérica a un<br>asistente que te conoce</h2>
+      <p class="lead">La misma tecnología, dos experiencias muy distintas. Toca cada una.</p>
+      <div class="hero-two" data-reveal>
+        <button class="card"><div class="card__head"><span class="num">A</span><span class="card__title">Gemini normal</span><span class="toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="card__body"><div><p class="card__inner">No conoce tu curso ni tu rúbrica. Le explicas todo, cada vez, desde cero. Útil, pero olvida el contexto en cuanto cierras la ventana.</p></div></div></button>
+        <button class="card"><div class="card__head"><span class="num">B</span><span class="card__title">Tu asistente calificador</span><span class="toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="card__body"><div><p class="card__inner">Ya sabe quién eres, qué evalúas y con qué rúbrica. Lo saludas, subes el trabajo del estudiante y te devuelve la retroalimentación con su nota.</p></div></div></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 · WHAT YOU GET -->
+  <section class="slide">
+    <div class="wrap">
+      <span class="eyebrow"><svg class="gem" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2.5h12l4.5 6.2L12 22 1.5 8.7z"/></svg>La meta de hoy</span>
+      <h2>Tres asistentes propios,<br>funcionando</h2>
+      <div class="grid g3" data-reveal>
+        <button class="card"><div class="card__head"><span class="num">1</span><span class="card__title">Creador de Gems</span><span class="toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="card__body"><div><p class="card__inner">Un asistente que te ayuda a crear otros asistentes. Tu herramienta para trabajar más rápido el resto del taller.</p></div></div></button>
+        <button class="card"><div class="card__head"><span class="num">2</span><span class="card__title">Califica y retroalimenta</span><span class="toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="card__body"><div><p class="card__inner">Revisa el trabajo de un estudiante y entrega retroalimentación con nota, guiándose por tu rúbrica.</p></div></div></button>
+        <button class="card"><div class="card__head"><span class="num">3</span><span class="card__title">Tutor de inglés</span><span class="toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="card__body"><div><p class="card__inner">Un asistente para que tus estudiantes practiquen con el material de tu curso, disponible cuando lo necesiten.</p></div></div></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 · WHAT IS A GEM -->
+  <section class="slide">
+    <div class="wrap">
+      <span class="eyebrow"><svg class="gem" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2.5h12l4.5 6.2L12 22 1.5 8.7z"/></svg>Lo esencial</span>
+      <h2>¿Qué es un Gem?</h2>
+      <p class="lead">Una versión personalizada de Gemini que configuras <b>una sola vez</b> y reutilizas siempre. En lugar de explicarle el contexto cada vez, el Gem ya sabe quién es, qué debe hacer y con qué materiales trabajar.</p>
+      <p class="lead" style="margin-top:1.4rem"><b style="color:var(--ink)">Instrucciones</b> &nbsp;+&nbsp; <b style="color:var(--ink)">conocimiento</b> &nbsp;=&nbsp; tu asistente.</p>
+    </div>
+  </section>
+
+  <!-- 5 · 3 INGREDIENTS -->
+  <section class="slide slide--dark">
+    <div class="wrap">
+      <span class="eyebrow"><svg class="gem" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2.5h12l4.5 6.2L12 22 1.5 8.7z"/></svg>La receta</span>
+      <h2>Los 3 ingredientes de<br>todo asistente</h2>
+      <div class="grid g3" data-reveal>
+        <button class="card"><div class="card__head"><span class="num">01</span><span class="card__title">Instrucciones</span><span class="toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="card__body"><div><p class="card__inner">Quién es el asistente y cómo debe comportarse. Es la parte que más define el resultado.</p></div></div></button>
+        <button class="card"><div class="card__head"><span class="num">02</span><span class="card__title">Conocimiento</span><span class="toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="card__body"><div><p class="card__inner">Los documentos que le das: archivos subidos o enlazados desde Google Drive.</p></div></div></button>
+        <button class="card"><div class="card__head"><span class="num">03</span><span class="card__title">Comportamiento</span><span class="toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="card__body"><div><p class="card__inner">Qué debe hacer y qué no. Aquí defines sus límites: por ejemplo, guiar sin dar la respuesta directa.</p></div></div></button>
+      </div>
+      <p class="hint">Toca cada tarjeta para ver el detalle</p>
+    </div>
+  </section>
+
+  <!-- 6 · WHY CECAR -->
+  <section class="slide">
+    <div class="wrap">
+      <span class="eyebrow"><svg class="gem" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2.5h12l4.5 6.2L12 22 1.5 8.7z"/></svg>Tu cuenta institucional</span>
+      <h2>Por qué usar tu correo<br>@cecar.edu.co</h2>
+      <div class="grid g2" data-reveal>
+        <button class="card"><div class="card__head"><span class="num">✓</span><span class="card__title">Privado y seguro</span><span class="toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="card__body"><div><p class="card__inner">Lo que haces se mantiene confidencial y no se usa para entrenar modelos, igual que tus archivos de Drive.</p></div></div></button>
+        <button class="card"><div class="card__head"><span class="num">✓</span><span class="card__title">Acceso inmediato</span><span class="toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="card__body"><div><p class="card__inner">Tú y tus estudiantes ya tienen cuenta. No hay registros nuevos ni fricción para empezar.</p></div></div></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 · BEFORE -->
+  <section class="slide">
+    <div class="wrap">
+      <span class="eyebrow"><svg class="gem" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2.5h12l4.5 6.2L12 22 1.5 8.7z"/></svg>Preparación</span>
+      <h2>Antes de empezar</h2>
+      <p class="lead">Marca cada punto a medida que lo completas.</p>
+      <ul class="check" data-check>
+        <li><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M4 12l5 5L20 6"/></svg></span><span>Inicia sesión en <b>gemini.google.com</b> con tu correo <b>@cecar.edu.co</b>.</span></li>
+        <li><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M4 12l5 5L20 6"/></svg></span><span>Abre el menú lateral y entra en <b>Gems</b>. Ahí verás <b>+ Nuevo Gem</b>.</span></li>
+        <li><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M4 12l5 5L20 6"/></svg></span><span>Ten a la mano tus materiales: la <b>rúbrica</b> y el <b>documento del curso</b>.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 8 · PRACTICE 1 -->
+  <section class="slide slide--top slide--practice">
+    <div class="wrap">
+      <span class="eyebrow"><svg class="gem" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2.5h12l4.5 6.2L12 22 1.5 8.7z"/></svg>Parte 1 · Práctica</span>
+      <h2>Tu primer asistente:<br>el "Creador de Gems"</h2>
+      <p class="lead">En vez de escribir las instrucciones desde cero, construyes un asistente experto en redactarlas. Luego lo usas para crear los demás.</p>
+      <div class="steps">
+        <div class="step"><span class="step__n"></span><p>Abre una IA con búsqueda web: <b>Claude</b>, <b>ChatGPT</b> o <b>Qwen</b>.</p></div>
+        <div class="step"><span class="step__n"></span><p>Pega el <b>Prompt 1</b> y luego el <b>Prompt 2</b> (abajo).</p></div>
+        <div class="step"><span class="step__n"></span><p>Copia las instrucciones en Markdown que te entregue.</p></div>
+        <div class="step"><span class="step__n"></span><p>En Gemini: <b>+ Nuevo Gem</b>, pega, nómbralo <b>"Creador de Gems"</b> y guárdalo.</p></div>
+      </div>
+      <div class="prompt-list">
+        <div class="prompt prompt--collapsible" data-prompt>
+          <div class="prompt__bar"><button class="prompt__toggle" type="button" aria-expanded="false" aria-controls="prompt-1"><span class="prompt__label">PROMPT 1 · Investigar buenas prácticas</span><span class="prompt__state"><span class="prompt__toggle-text">Mostrar</span><span class="prompt__chevron">+</span></span></button><button class="copy" type="button">Copiar</button></div>
+          <pre id="prompt-1">Investiga las mejores prácticas para redactar instrucciones personalizadas (system prompts) para asistentes de IA. Consulta guías y documentación oficial de Google (Gemini/Gems), Anthropic (Claude) y OpenAI (GPT). Resume los principios clave: rol, contexto, claridad, tono, límites y formato de salida.</pre>
+        </div>
+        <div class="prompt prompt--collapsible" data-prompt>
+          <div class="prompt__bar"><button class="prompt__toggle" type="button" aria-expanded="false" aria-controls="prompt-2"><span class="prompt__label">PROMPT 2 · Generar las instrucciones</span><span class="prompt__state"><span class="prompt__toggle-text">Mostrar</span><span class="prompt__chevron">+</span></span></button><button class="copy" type="button">Copiar</button></div>
+          <pre id="prompt-2">Con base en esas buenas prácticas, redacta las instrucciones para un Gem de Gemini experto en crear instrucciones para otros asistentes. Lo usarán docentes universitarios de CECAR para construir asistentes de su práctica docente.
+
+Cuando lo usen, el Gem debe guiar al docente resolviendo:
+1. ¿Quién va a usar el asistente?
+2. ¿Qué tarea debe realizar?
+   a. ¿Debe pedir algo antes de empezar (subir un documento)?
+   b. ¿Tendrá base de conocimiento (documentos, Drive, NotebookLM)?
+3. Debe hacer preguntas de aclaración cuando falte información.
+
+Entrega el resultado en formato Markdown, listo para pegar en un Gem.</pre>
+        </div>
+      </div>
+      <div class="resource-link">
+        <span><b>Atajo:</b> abre las instrucciones ya definidas.</span>
+        <a href="docs/creador_de_gems_docentes.md" target="_blank" rel="noopener noreferrer">Abrir .md</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 · PRACTICE 2 -->
+  <section class="slide slide--top slide--practice">
+    <div class="wrap">
+      <span class="eyebrow"><svg class="gem" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2.5h12l4.5 6.2L12 22 1.5 8.7z"/></svg>Parte 2 · Práctica</span>
+      <h2>Asistente que califica<br>y retroalimenta</h2>
+      <p class="lead">Usa tu Creador de Gems para construir un asistente que revisa un trabajo y entrega nota y retroalimentación, guiándose por tu rúbrica.</p>
+      <div class="steps">
+        <div class="step"><span class="step__n"></span><p>Pídele las instrucciones a tu <b>Creador de Gems</b> con el prompt de abajo.</p></div>
+        <div class="step"><span class="step__n"></span><p>Crea el Gem y pega las instrucciones que genere.</p></div>
+        <div class="step"><span class="step__n"></span><p>En <b>Conocimiento</b>, sube la <b>rúbrica (PDF)</b> y 1–2 trabajos de ejemplo.</p></div>
+        <div class="step"><span class="step__n"></span><p>Pruébalo: sube un trabajo y pide la retroalimentación con nota.</p></div>
+      </div>
+      <div class="prompt prompt--collapsible" data-prompt>
+        <div class="prompt__bar"><button class="prompt__toggle" type="button" aria-expanded="false" aria-controls="prompt-feedback"><span class="prompt__label">Pídeselo así al Creador de Gems</span><span class="prompt__state"><span class="prompt__toggle-text">Mostrar</span><span class="prompt__chevron">+</span></span></button><button class="copy" type="button">Copiar</button></div>
+        <pre id="prompt-feedback">Voy a crear un Gem que va a calificar un trabajo relacionado al tema de contabilidad tributaria. Soy docente universitario de pregrado, voy a subir el documento que me envía el estudiante, le voy a proporcionar al Gem en la base de conocimiento la rúbrica y este debe emitir una retroalimentación con la respectiva nota, justificando la calificación de acuerdo con los criterios de la misma. Debe usar un lenguaje cercano, reflexivo y constructivo, todo basándose directamente en la rúbrica que se le va a proporcionar. No vas a hacer correcciones del trabajo del estudiante y debes ceñirte a los criterios de la rúbrica.</pre>
+      </div>
+      <div class="resource-files" aria-label="Documentos PDF para la práctica">
+        <a class="resource-file" href="docs/rubrica_contabilidad.pdf" target="_blank" rel="noopener noreferrer" download>Rúbrica<span>PDF</span></a>
+        <a class="resource-file" href="docs/contabilidad_1.pdf" target="_blank" rel="noopener noreferrer" download>Trabajo 1<span>PDF</span></a>
+        <a class="resource-file" href="docs/contabilidad_2.pdf" target="_blank" rel="noopener noreferrer" download>Trabajo 2<span>PDF</span></a>
+        <a class="resource-file" href="docs/contabilidad_3.pdf" target="_blank" rel="noopener noreferrer" download>Trabajo 3<span>PDF</span></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 · PRACTICE 3 -->
+  <section class="slide slide--top slide--practice">
+    <div class="wrap">
+      <span class="eyebrow"><svg class="gem" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2.5h12l4.5 6.2L12 22 1.5 8.7z"/></svg>Parte 3 · Práctica</span>
+      <h2>Tutor de inglés para<br>tus estudiantes</h2>
+      <p class="lead">Conectas el material del curso desde Google Drive, para que el asistente se actualice solo cuando cambies el archivo.</p>
+      <div class="steps">
+        <div class="step"><span class="step__n"></span><p>Pídele las instrucciones a tu <b>Creador de Gems</b> con el prompt de abajo.</p></div>
+        <div class="step"><span class="step__n"></span><p>Sube el <b>documento maestro del curso</b> a Google Drive.</p></div>
+        <div class="step"><span class="step__n"></span><p>Crea el Gem y, en <b>Conocimiento</b>, elige <b>Añadir desde Drive</b>.</p></div>
+        <div class="step"><span class="step__n"></span><p>Pruébalo y compártelo con tus estudiantes.</p></div>
+      </div>
+      <div class="prompt prompt--collapsible" data-prompt>
+        <div class="prompt__bar"><button class="prompt__toggle" type="button" aria-expanded="false" aria-controls="prompt-english-tutor"><span class="prompt__label">Pídeselo así al Creador de Gems</span><span class="prompt__state"><span class="prompt__toggle-text">Mostrar</span><span class="prompt__chevron">+</span></span></button><button class="copy" type="button">Copiar</button></div>
+        <pre id="prompt-english-tutor">Voy a crear un Gem para estudiantes universitarios de CECAR que funcione como tutor de práctica de inglés. El asistente será usado por estudiantes de cuarto semestre, nivel B1+, en la Unidad 4: Life Experiences and Achievements, enfocada en Present Perfect vs. Past Simple.
+
+El Gem tendrá una base de conocimiento: voy a agregar desde Google Drive un documento maestro del curso en la sección Conocimiento, usando la opción Añadir desde Drive. Ese documento contiene los objetivos, vocabulario, explicaciones gramaticales, errores frecuentes, ejercicios, tareas y rúbrica de la unidad. Las respuestas del asistente deben basarse en ese documento.
+
+Necesito que redactes las instrucciones completas del Gem en Markdown, listas para pegar en Gemini Gems. Incluye:
+
+1. Nombre sugerido del asistente.
+2. Rol: tutor amable, paciente y motivador de inglés para estudiantes B1+.
+3. Tarea principal: ayudar a practicar Present Perfect vs. Past Simple, for/since, ever/never/already/yet/just, vocabulario de experiencias, logros y metas personales.
+4. Uso del conocimiento: responder solamente con base en el documento maestro agregado desde Google Drive; si el estudiante pregunta algo fuera de la unidad, reencauzarlo amablemente hacia los temas del curso.
+5. Comportamiento pedagógico: guiar con pistas, preguntas y ejemplos antes de dar una respuesta directa; usar método socrático cuando el estudiante cometa errores.
+6. Idioma: hablar principalmente en inglés sencillo de nivel B1; usar español solo cuando el estudiante esté bloqueado o pida aclaración.
+7. Límites: no hacer tareas evaluadas, exámenes ni escritos completos por el estudiante; ayudarlo a aprender, practicar y mejorar.
+8. Formato de respuesta: respuestas breves, claras, con ejemplos y una pregunta final para seguir practicando.
+9. Recordatorio para el docente: después de crear el Gem, debe añadir el documento maestro desde Drive en la base de conocimiento.
+
+El resultado debe ser un conjunto de instrucciones claro, estructurado y listo para copiar en el campo de instrucciones del Gem.</pre>
+      </div>
+      <div class="grid" data-reveal style="margin-top:16px">
+        <button class="card"><div class="card__head"><span class="num">!</span><span class="card__title">Para compartir con estudiantes</span><span class="toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="card__body"><div><p class="card__inner">La opción de compartir Gems debe estar habilitada por el administrador de Workspace de CECAR. Una vez activa, compártelo por enlace dentro de la institución o adjúntalo a tu curso en <b>Moodle</b>. Solicítalo a TI con anticipación.</p></div></div></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11 · 4 QUESTIONS -->
+  <section class="slide slide--dark">
+    <div class="wrap">
+      <span class="eyebrow"><svg class="gem" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2.5h12l4.5 6.2L12 22 1.5 8.7z"/></svg>Para recordar</span>
+      <h2>Las 4 preguntas de<br>todo buen asistente</h2>
+      <p class="lead">Si respondes esto antes de crear un Gem, las instrucciones salen solas.</p>
+      <div class="grid g4" data-reveal>
+        <button class="card"><div class="card__head"><span class="num">1</span><span class="card__title">¿Quién lo va a usar?</span><span class="toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="card__body"><div><p class="card__inner">Tú, tus estudiantes, un área administrativa… Define el tono y el nivel del lenguaje.</p></div></div></button>
+        <button class="card"><div class="card__head"><span class="num">2</span><span class="card__title">¿Qué debe hacer?</span><span class="toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="card__body"><div><p class="card__inner">¿Pide algo antes de empezar? ¿Tendrá base de conocimiento? Aquí defines su tarea.</p></div></div></button>
+        <button class="card"><div class="card__head"><span class="num">3</span><span class="card__title">¿Cómo debe comportarse?</span><span class="toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="card__body"><div><p class="card__inner">Tono, qué sí hace y qué no hace. Sus límites son tan importantes como su tarea.</p></div></div></button>
+        <button class="card"><div class="card__head"><span class="num">4</span><span class="card__title">¿Con qué lo alimento?</span><span class="toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="card__body"><div><p class="card__inner">Rúbricas, guías, lecturas, enlaces de Drive. El conocimiento que lo vuelve tuyo.</p></div></div></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12 · CLOSING -->
+  <section class="slide slide--dark slide--center">
+    <div class="wrap">
+      <span class="eyebrow" style="justify-content:center"><svg class="gem" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2.5h12l4.5 6.2L12 22 1.5 8.7z"/></svg>Y ahora, a construir</span>
+      <h2>Empieza simple.</h2>
+      <p class="lead" style="margin-left:auto;margin-right:auto">Un asistente que hace bien una sola cosa vale más que uno que intenta todo. Toca una buena práctica para recordarla.</p>
+      <div class="closing-chips" data-chips>
+        <button class="chip" data-note="Diseña los asistentes de estudiantes para guiar el aprendizaje, no para hacer el trabajo evaluado.">Integridad académica</button>
+        <button class="chip" data-note="La IA puede equivocarse. Verifica notas, datos y afirmaciones antes de usarlas.">Revisa siempre</button>
+        <button class="chip" data-note="Si enlazas desde Drive, basta con actualizar el archivo para renovar el conocimiento.">Mantenlo al día</button>
+        <button class="chip" data-note="Trabaja siempre con tu cuenta institucional @cecar.edu.co.">Privacidad</button>
+      </div>
+      <p class="chip-note" id="chipNote">Tienes la guía en PDF para seguir cada paso después del taller.</p>
+    </div>
+  </section>
+
+</div>
+
+<div class="dots" id="dots"></div>
+<div class="nav">
+  <button id="prev" aria-label="Anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg></button>
+  <button id="next" aria-label="Siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg></button>
+</div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  const total=slides.length;
+  let i=0;
+  const cur=document.getElementById('cur'),progress=document.getElementById('progress');
+  const prevBtn=document.getElementById('prev'),nextBtn=document.getElementById('next');
+  const dotsWrap=document.getElementById('dots');
+  document.getElementById('tot').textContent=String(total).padStart(2,'0');
+
+  slides.forEach((_,n)=>{const b=document.createElement('button');b.setAttribute('aria-label','Ir a '+(n+1));b.onclick=()=>go(n);dotsWrap.appendChild(b);});
+  const dots=[...dotsWrap.children];
+
+  function go(n){
+    n=Math.max(0,Math.min(total-1,n));
+    slides[i].classList.remove('active');
+    slides[i].classList.toggle('prev',n>i);
+    i=n;
+    slides[i].classList.remove('prev');
+    slides[i].classList.add('active');
+    slides[i].scrollTop=0;
+    cur.textContent=String(i+1).padStart(2,'0');
+    progress.style.width=((i+1)/total*100)+'%';
+    dots.forEach((d,k)=>d.classList.toggle('on',k===i));
+    prevBtn.disabled=i===0;nextBtn.disabled=i===total-1;
+    document.body.classList.toggle('on-dark',slides[i].classList.contains('slide--dark'));
+  }
+  nextBtn.onclick=()=>go(i+1);prevBtn.onclick=()=>go(i-1);
+  window.addEventListener('keydown',e=>{
+    if(e.target instanceof Element && e.target.closest('button,a,input,textarea,select,summary'))return;
+    if(['ArrowRight','ArrowDown',' ','PageDown'].includes(e.key)){e.preventDefault();go(i+1);}
+    else if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key)){e.preventDefault();go(i-1);}
+    else if(e.key==='Home')go(0);else if(e.key==='End')go(total-1);
+  });
+  // swipe
+  let x0=null;
+  document.getElementById('stage').addEventListener('touchstart',e=>x0=e.touches[0].clientX,{passive:true});
+  document.getElementById('stage').addEventListener('touchend',e=>{
+    if(x0===null)return;const dx=e.changedTouches[0].clientX-x0;
+    if(Math.abs(dx)>60){dx<0?go(i+1):go(i-1);}x0=null;
+  });
+
+  // reveal cards
+  document.querySelectorAll('[data-reveal] .card').forEach(c=>{
+    c.setAttribute('aria-expanded','false');
+    c.addEventListener('click',()=>{const o=c.classList.toggle('open');c.setAttribute('aria-expanded',o);});
+  });
+  // checklist
+  document.querySelectorAll('[data-check] li').forEach(li=>li.addEventListener('click',()=>li.classList.toggle('done')));
+  // copy prompts
+  document.querySelectorAll('[data-prompt]').forEach(p=>{
+    const toggle=p.querySelector('.prompt__toggle');
+    if(toggle){
+      const label=toggle.querySelector('.prompt__toggle-text');
+      const setOpen=open=>{
+        p.classList.toggle('open',open);
+        toggle.setAttribute('aria-expanded',String(open));
+        if(label)label.textContent=open?'Ocultar':'Mostrar';
+      };
+      toggle.addEventListener('click',()=>setOpen(!p.classList.contains('open')));
+      setOpen(p.classList.contains('open'));
+    }
+    const btn=p.querySelector('.copy'),txt=p.querySelector('pre').textContent.trim();
+    btn.addEventListener('click',async()=>{
+      try{await navigator.clipboard.writeText(txt);}catch(e){}
+      btn.textContent='¡Copiado!';btn.classList.add('done');
+      setTimeout(()=>{btn.textContent='Copiar';btn.classList.remove('done');},1600);
+    });
+  });
+  // closing chips
+  const note=document.getElementById('chipNote');
+  document.querySelectorAll('[data-chips] .chip').forEach(ch=>ch.addEventListener('click',()=>{
+    document.querySelectorAll('[data-chips] .chip').forEach(c=>c.classList.remove('on'));
+    ch.classList.add('on');note.textContent=ch.dataset.note;
+  }));
+
+  go(0);
+</script>
+</body>
+</html>
